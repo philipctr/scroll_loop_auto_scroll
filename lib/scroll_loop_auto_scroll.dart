@@ -112,53 +112,48 @@ class _ScrollLoopAutoScrollState extends State<ScrollLoopAutoScroll>
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      physics: widget.enableScrollInput
-          ? const BouncingScrollPhysics()
-          : const NeverScrollableScrollPhysics(),
-      controller: controller,
-      scrollDirection: widget.scrollDirection,
-      reverse: widget.reverseScroll,
-      child: SlideTransition(
-        position: transition,
-        child: ValueListenableBuilder<bool>(
-          valueListenable: triggerScroll,
-          builder: (BuildContext context, bool active, _) {
-            return widget.scrollDirection == Axis.horizontal
-                ? ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: widget.duplicateChild,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          right:
-                              active && !widget.reverseScroll ? widget.gap : 0,
-                          left: active && widget.reverseScroll ? widget.gap : 0,
-                        ),
-                        child: widget.child,
-                      );
-                    },
-                  )
-                : ListView.builder(
-                    scrollDirection: Axis.vertical,
-                    itemCount: widget.duplicateChild,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          bottom:
-                              active && !widget.reverseScroll ? widget.gap : 0,
-                          top: active && widget.reverseScroll ? widget.gap : 0,
-                        ),
-                        child: widget.child,
-                      );
-                    },
-                  );
-          },
-        ),
+    return SlideTransition(
+      position: transition,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: triggerScroll,
+        builder: (BuildContext context, bool active, _) {
+          return widget.scrollDirection == Axis.horizontal
+              ? ListView.builder(
+                  controller: controller,
+                  scrollDirection: Axis.horizontal,
+                  itemCount: widget.duplicateChild ?? 0,
+                  physics: widget.enableScrollInput
+                      ? const BouncingScrollPhysics()
+                      : const NeverScrollableScrollPhysics(),
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        right: active && !widget.reverseScroll ? widget.gap : 0,
+                        left: active && widget.reverseScroll ? widget.gap : 0,
+                      ),
+                      child: widget.child,
+                    );
+                  },
+                )
+              : ListView.builder(
+                  controller: controller,
+                  scrollDirection: Axis.vertical,
+                  itemCount: widget.duplicateChild ?? 0,
+                  physics: widget.enableScrollInput
+                      ? const BouncingScrollPhysics()
+                      : const NeverScrollableScrollPhysics(),
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        bottom:
+                            active && !widget.reverseScroll ? widget.gap : 0,
+                        top: active && widget.reverseScroll ? widget.gap : 0,
+                      ),
+                      child: widget.child,
+                    );
+                  },
+                );
+        },
       ),
     );
   }
