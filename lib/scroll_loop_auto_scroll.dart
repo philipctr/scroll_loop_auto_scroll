@@ -17,57 +17,30 @@ class ScrollLoopAutoScroll extends StatefulWidget {
   }) : super(key: key);
 
   /// Widget to display in loop
-  ///
-  /// required
   final Widget child;
 
   /// Duration to wait before starting animation
-  ///
-  /// Default set to Duration(seconds: 1).
-  ///
-
   final Duration delay;
 
   /// Duration of animation
-  ///
-  /// Default set to Duration(seconds: 30).
   final Duration duration;
 
-  /// Sized between end of child and beginning of next child instance
-  ///
-  /// Default set to 25.
+  /// Spacing between end of one child and beginning of next
   final double gap;
 
-  /// The axis along which the scroll view scrolls.
-  ///
-  /// required
+  /// The axis along which the scroll view scrolls
   final Axis scrollDirection;
 
-  ///
-  /// true : Right to Left
-  ///
-  // |___________________________<--Scrollbar-Starting-Right-->|
-  ///
-  /// fasle : Left to Right (Default)
-  ///
-  // |<--Scrollbar-Starting-Left-->____________________________|
+  /// Reverse scroll direction
   final bool reverseScroll;
 
-  /// The number of times duplicates child. So when the user scrolls then, he can't find the end.
-  ///
-  /// Default set to 25.
-  ///
-  final int duplicateChild;
+  /// The number of times to duplicate the child
+  final int? duplicateChild;
 
-  ///User scroll input
-  ///
-  ///Default set to true
+  /// Enable user input for scrolling
   final bool enableScrollInput;
 
-  /// Duration to wait before starting animation, after user scroll Input.
-  ///
-  /// Default set to Duration(seconds: 1).
-  ///
+  /// Duration to wait before resuming animation after user input
   final Duration delayAfterScrollInput;
 
   @override
@@ -76,35 +49,33 @@ class ScrollLoopAutoScroll extends StatefulWidget {
 
 class _ScrollLoopAutoScrollState extends State<ScrollLoopAutoScroll>
     with SingleTickerProviderStateMixin {
-  late final AnimationController animationController;
-  late Animation<Offset> offset;
+  late final AnimationController control;
+  late final Animation<Offset> transition;
 
-  ValueNotifier<bool> shouldScroll = ValueNotifier<bool>(false);
-  late final ScrollController scrollController;
+  final ValueNotifier<bool> triggerScroll = ValueNotifier<bool>(false);
+  late final ScrollController controller;
 
   @override
   void initState() {
-    scrollController = ScrollController();
+    controller = ScrollController();
 
-    scrollController.addListener(() async {
+    controller.addListener(() async {
       if (widget.enableScrollInput) {
-        if (animationController.isAnimating) {
-          animationController.stop();
+        if (control.isAnimating) {
+          control.stop();
         } else {
           await Future.delayed(widget.delayAfterScrollInput);
-          if (mounted) {
-            animationHandler();
-          }
+          triggerAnimation();
         }
       }
     });
 
-    animationController = AnimationController(
+    control = AnimationController(
       duration: widget.duration,
       vsync: this,
     );
 
-    offset = Tween<Offset>(
+    transition = Tween<Offset>(
       begin: Offset.zero,
       end: widget.scrollDirection == Axis.horizontal
           ? widget.reverseScroll
@@ -113,28 +84,26 @@ class _ScrollLoopAutoScrollState extends State<ScrollLoopAutoScroll>
           : widget.reverseScroll
               ? const Offset(0, .5)
               : const Offset(0, -.5),
-    ).animate(animationController);
+    ).animate(control);
 
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.delayed(widget.delay);
-      if (mounted) {
-        animationHandler();
-      }
+      triggerAnimation();
     });
 
     super.initState();
   }
 
-  animationHandler() async {
-    if (scrollController.position.maxScrollExtent > 0) {
-      shouldScroll.value = true;
+  void triggerAnimation() async {
+    if (controller.position.maxScrollExtent > 0) {
+      triggerScroll.value = true;
 
-      if (shouldScroll.value && mounted) {
-        animationController.forward().then((_) async {
-          animationController.reset();
+      if (triggerScroll.value && mounted) {
+        control.forward().then((_) async {
+          control.reset();
 
-          if (shouldScroll.value && mounted) {
-            animationHandler();
+          if (triggerScroll.value && mounted) {
+            triggerAnimation();
           }
         });
       }
@@ -147,42 +116,47 @@ class _ScrollLoopAutoScrollState extends State<ScrollLoopAutoScroll>
       physics: widget.enableScrollInput
           ? const BouncingScrollPhysics()
           : const NeverScrollableScrollPhysics(),
-      controller: scrollController,
+      controller: controller,
       scrollDirection: widget.scrollDirection,
       reverse: widget.reverseScroll,
       child: SlideTransition(
-        position: offset,
+        position: transition,
         child: ValueListenableBuilder<bool>(
-          valueListenable: shouldScroll,
-          builder: (BuildContext context, bool shouldScroll, _) {
+          valueListenable: triggerScroll,
+          builder: (BuildContext context, bool active, _) {
             return widget.scrollDirection == Axis.horizontal
-                ? Row(
-                    children: List.generate(
-                        widget.duplicateChild,
-                        (index) => Padding(
-                              padding: EdgeInsets.only(
-                                  right: shouldScroll && !widget.reverseScroll
-                                      ? widget.gap
-                                      : 0,
-                                  left: shouldScroll && widget.reverseScroll
-                                      ? widget.gap
-                                      : 0),
-                              child: widget.child,
-                            )))
-                : Column(
-                    children: List.generate(
-                    widget.duplicateChild,
-                    (index) => Padding(
-                      padding: EdgeInsets.only(
-                          bottom: shouldScroll && !widget.reverseScroll
-                              ? widget.gap
-                              : 0,
-                          top: shouldScroll && widget.reverseScroll
-                              ? widget.gap
-                              : 0),
-                      child: widget.child,
-                    ),
-                  ));
+                ? ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: widget.duplicateChild,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          right:
+                              active && !widget.reverseScroll ? widget.gap : 0,
+                          left: active && widget.reverseScroll ? widget.gap : 0,
+                        ),
+                        child: widget.child,
+                      );
+                    },
+                  )
+                : ListView.builder(
+                    scrollDirection: Axis.vertical,
+                    itemCount: widget.duplicateChild,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          bottom:
+                              active && !widget.reverseScroll ? widget.gap : 0,
+                          top: active && widget.reverseScroll ? widget.gap : 0,
+                        ),
+                        child: widget.child,
+                      );
+                    },
+                  );
           },
         ),
       ),
@@ -191,7 +165,7 @@ class _ScrollLoopAutoScrollState extends State<ScrollLoopAutoScroll>
 
   @override
   void dispose() {
-    animationController.dispose();
+    control.dispose();
     super.dispose();
   }
 }
